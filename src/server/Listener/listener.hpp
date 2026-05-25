@@ -27,11 +27,12 @@ private:
     void refreshFdSet();
     int acceptClient(int connectionSocket);
     void registerClient(int clientFd);
-    void scanFdSet(void (*callback) (int fd));
+    void handleClientRequest(void (*callback) (int fd));
     int getSelectFdValue();
     Payload readClientBuffer(int fdClient);
-    void handlePayload(Payload &payload);
-    void handleTypeCreate(Payload &payload);
-    void handleTypeUpdate(Payload &payload);
-    void handleTypeDelete(Payload &payload);
+    std::vector<Payload> handlePayload(Payload &payload);
+    std::vector<Payload> handleTypeCreate(Payload &payload);
+    std::vector<Payload> handleTypeUpdate(Payload &payload);
+    std::vector<Payload> handleTypeDelete(Payload &payload);
+    std::unordered_map<int, std::vector<Person>> buildMappingPayload(std::vector<Payload> &payload);
 };

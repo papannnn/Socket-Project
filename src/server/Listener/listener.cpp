@@ -3,6 +3,7 @@
 #include <cstring>
 #include <sys/_select.h>
 #include <unistd.h>
+#include <unordered_map>
 #include <../shared/type.hpp>
 
 Listener::Listener(char* socketName_, const int &socketClientHandle_, const int &bufferSize_) : 
@@ -28,7 +29,7 @@ void Listener::execListen() {
             int fdClient = accept(connectionSocketFd, NULL, NULL);
             registerClient(fdClient);
         } else {
-            scanFdSet([] (int fd) {
+            handleClientRequest([] (int fd) {
                 this->handlePayload();
             });
         }
@@ -103,15 +104,34 @@ int Listener::getSelectFdValue() {
     return result + 1;
 }
 
-void Listener::scanFdSet(void (*callback)(int fd)) {
-    
+void Listener::handleClientRequest(void (*callback)(int fd)) {
+    std::vector<Payload> sendBackArr;
     for (int i = 0; i < fdArr.size(); i++) {
-        if (FD_ISSET(fdArr[i], &(this->fdSet))) {
-            Payload payload = readClientBuffer(fdArr[i]);
-            callback(fdArr[i]);
+        if (!FD_ISSET(fdArr[i], &(this->fdSet))) {
+            continue;
+        }
+
+        Payload payload = readClientBuffer(fdArr[i]);
+
+        std::vector<Payload> result = handlePayload(payload);
+        sendBackArr.insert(sendBackArr.end(), result.begin(), result.end());
+    }
+
+    std::unordered_map<int, std::vector<Person>> mappingPayload = buildMappingPayload(sendBackArr);
+    for (int i = 0; i < fdArr.size(); i++) {
+        if (!FD_ISSET(fdArr[i], &(this->fdSet))) {
+            continue;
+        }
+
+        for (const auto mapping : mappingPayload) {
+            memset(buffer, 0, bufferSize);
+            memcpy(buffer, mapping.second.data(), bufferSize);
+
         }
     }
 }
+
+
 
 Payload Listener::readClientBuffer(int fdClient) {
     memset(buffer, 0, bufferSize);
@@ -124,37 +144,61 @@ Payload Listener::readClientBuffer(int fdClient) {
     return *result;
 }
 
-void Listener::handlePayload(Payload &payload) {
+std::vector<Payload> Listener::handlePayload(Payload &payload) {
     if (payload.type == TYPE_CREATE) {
-        handleTypeCreate(payload);
+        return handleTypeCreate(payload);
     } else if (payload.type == TYPE_UPDATE) {
-        handleTypeUpdate(payload);
+        return handleTypeUpdate(payload);
     } else if (payload.type == TYPE_DELETE) {
-        handleTypeDelete(payload);
+        return handleTypeDelete(payload);
     }
+
+    return std::vector<Payload>();
 }
 
-void Listener::handleTypeCreate(Payload &payload) {
+std::vector<Payload> Listener::handleTypeCreate(Payload &payload) {
+    std::vector<Payload> sendBack;
     int length = payload.length;
     for (int i = 0; i < length; i++) {
         Person *person = reinterpret_cast<Person*>(payload.data);
         person->id = Listener::nextId++;
         dataTree.insert({person->id, *person});
+
+        memcpy(payload.data, person, bufferSize);
+        sendBack.push_back(payload);
     }
+    return sendBack;
 }
 
-void Listener::handleTypeUpdate(Payload &payload) {
+std::vector<Payload> Listener::handleTypeUpdate(Payload &payload) {
+    std::vector<Payload> sendBack;
     int length = payload.length;
     for (int i = 0; i < length; i++) {
         Person *person = reinterpret_cast<Person*>(payload.data);
         dataTree.insert({person->id, *person});
+
+        memcpy(payload.data, person, bufferSize);
+        sendBack.push_back(payload);
     }
+    return sendBack;
 }
 
-void Listener::handleTypeDelete(Payload &payload) {
+std::vector<Payload> Listener::handleTypeDelete(Payload &payload) {
+    std::vector<Payload> sendBack;
     int length = payload.length;
     for (int i = 0 ; i < length; i++) {
         Person *person = reinterpret_cast<Person*>(payload.data);
         dataTree.erase(person->id);
+
+        sendBack.push_back(payload);
     }
+    return sendBack;
+}
+
+std::unordered_map<int, std::vector<Person>> buildMappingPayload(std::vector<Payload> &payloadArr) {
+    std::unordered_map<int, std::vector<Person>> result;
+    for (Payload &p : payloadArr) {
+        result[p.type].push_back(p.);
+    }
+    return result;
 }
