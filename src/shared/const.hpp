@@ -1,0 +1,9 @@
+#ifndef __CONST_SOCKET_PROJECT_SHARED__
+#define __CONST_SOCKET_PROJECT_SHARED__
+
+#define SOCKET_NAME "/tmp/socketProject"
+#define SOCKET_CLIENT_HANDLE_CNT 10
+#define BUFFER_SIZE 8192
+#define DATA_SIZE 8190
+
+#endif
