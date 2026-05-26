@@ -1,3 +1,6 @@
+#ifndef __LISTENER_SOCKET_PROJECT_SERVER__
+#define __LISTENER_SOCKET_PROJECT_SERVER__
+
 #include <../shared/type.hpp>
 #include <sys/un.h>
 #include <sys/socket.h>
@@ -20,8 +23,6 @@ private:
     std::map<int, Person> dataTree;
     static int nextId;
 
-    int initSocket();
-    const sockaddr* initSockAddr();
     void socketBind(int connectionSocket, const sockaddr* sockAddr);
     void initListen(int socketFd);
     void insertFdToArrayFd(int fd);
@@ -31,12 +32,16 @@ private:
     void handleClientRequest();
     int getSelectFdValue();
     Payload readClientBuffer(int fdClient);
-    void handlePayload(Payload &payload);
+    void handlePayload(Payload &payload, int fdClient);
     void handleTypeCreate(Payload &payload);
     void handleTypeUpdate(Payload &payload);
     void handleTypeDelete(Payload &payload);
+    void handleTypeClose(Payload &payload, int fdClient);
+    void removeFd(int fd);
     void insertPersonVectorToMapping(std::unordered_map<int, Payload> &mapping, std::pair<int, std::vector<Person>> &sendBackPair);
     Payload buildPayloadForRegister();
     void initNewData();
     void sendNewData(int clientFd);
 };
+
+#endif

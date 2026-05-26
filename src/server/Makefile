@@ -10,4 +10,4 @@ liblistener.a:listener.o
 	ar rs liblistener.a listener.o
 
 server:main.o liblistener.a
-	g++ main.o liblistener.a -o server
+	g++ main.o liblistener.a ../shared/libhelper.a -o server 

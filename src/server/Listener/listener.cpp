@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <../shared/type.hpp>
 #include <iostream>
+#include "../shared/helper.hpp"
 
 int Listener::nextId = 1;
 
@@ -19,7 +20,7 @@ Listener::Listener(char const* socketName_, const int &socketClientHandle_, cons
 
 void Listener::execListen() {
     int connectionSocketFd = initSocket();
-    const sockaddr* sockAddr = initSockAddr();
+    const sockaddr* sockAddr = initSockAddr(this->sockAddr, socketName);
     socketBind(connectionSocketFd, sockAddr);
     initListen(connectionSocketFd);
 
@@ -36,20 +37,6 @@ void Listener::execListen() {
             handleClientRequest();
         }
     }
-}
-
-int Listener::initSocket() {
-    int connectionSocketFd = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (connectionSocketFd == -1) {
-        throw("Failed creating socket connection");
-    }
-    return connectionSocketFd;
-}
-
-const sockaddr* Listener::initSockAddr() {
-    sockAddr->sun_family = AF_UNIX;
-    strcpy(sockAddr->sun_path, this->socketName);
-    return reinterpret_cast<const sockaddr*>(sockAddr);
 }
 
 void Listener::socketBind(int connectionSocketFd, const sockaddr* sockAddr) {
@@ -73,6 +60,17 @@ void Listener::insertFdToArrayFd(int fd) {
             break;
         }
     }
+}
+
+void Listener::removeFd(int fd) {
+    for (int i = 0; i < fdArr.size(); i++) {
+        if (fdArr[i] == fd) {
+            fdArr[i] = -1;
+            break;
+        }
+    }
+
+    FD_CLR(fd, &(fdSet));
 }
 
 void Listener::refreshFdSet() {
@@ -127,7 +125,7 @@ void Listener::handleClientRequest() {
 
         Payload payload = readClientBuffer(fdArr[i]);
 
-        handlePayload(payload);
+        handlePayload(payload, fdArr[i]);
     }
 
     initNewData();
@@ -151,13 +149,16 @@ Payload Listener::readClientBuffer(int fdClient) {
     return *result;
 }
 
-void Listener::handlePayload(Payload &payload) {
+void Listener::handlePayload(Payload &payload, int fdClient) {
+    std::cout << "Type: " << payload.type << std::endl;
     if (payload.type == TYPE_CREATE) {
         handleTypeCreate(payload);
     } else if (payload.type == TYPE_UPDATE) {
         handleTypeUpdate(payload);
     } else if (payload.type == TYPE_DELETE) {
         handleTypeDelete(payload);
+    } else if (payload.type == TYPE_CLOSE) {
+        handleTypeClose(payload, fdClient);
     }
 }
 
@@ -186,9 +187,15 @@ void Listener::handleTypeDelete(Payload &payload) {
     }
 }
 
+void Listener::handleTypeClose(Payload &payload, int fdClient) {
+    std::cout << "MASUK " << std::endl;
+    removeFd(fdClient);
+    close(fdClient);
+}
+
 Payload Listener::buildPayloadForRegister() {
     Payload payload;
-    payload.type = TYPE_REGISTER;
+    payload.type = TYPE_REFRESH;
     payload.length = dataTree.size();
     std::vector<Person> arr;
     arr.reserve(payload.length);

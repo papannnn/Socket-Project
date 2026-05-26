@@ -7,7 +7,7 @@
 #define TYPE_UPDATE 2
 #define TYPE_DELETE 3
 #define TYPE_CLOSE 4
-#define TYPE_REGISTER 5
+#define TYPE_REFRESH 5
 
 struct Payload {
     unsigned char type;
