@@ -31,11 +31,12 @@ private:
     void handleClientRequest();
     int getSelectFdValue();
     Payload readClientBuffer(int fdClient);
-    std::pair<int, std::vector<Person>> handlePayload(Payload &payload);
-    std::vector<Person> handleTypeCreate(Payload &payload);
-    std::vector<Person> handleTypeUpdate(Payload &payload);
-    std::vector<Person> handleTypeDelete(Payload &payload);
-    std::unordered_map<int, std::vector<Person>> buildMappingPayload(std::vector<Payload> &payload);
+    void handlePayload(Payload &payload);
+    void handleTypeCreate(Payload &payload);
+    void handleTypeUpdate(Payload &payload);
+    void handleTypeDelete(Payload &payload);
     void insertPersonVectorToMapping(std::unordered_map<int, Payload> &mapping, std::pair<int, std::vector<Person>> &sendBackPair);
     Payload buildPayloadForRegister();
+    void initNewData();
+    void sendNewData(int clientFd);
 };

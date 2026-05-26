@@ -94,9 +94,17 @@ int Listener::acceptClient(int connectionSocket) {
 
 void Listener::registerClient(int clientFd) {
     insertFdToArrayFd(clientFd);
+    initNewData();
+    sendNewData(clientFd);
+}
+
+void Listener::initNewData() {
     Payload payload = buildPayloadForRegister();
     memset(buffer, 0, bufferSize);
     memcpy(buffer, &payload, sizeof(Payload));
+}
+
+void Listener::sendNewData(int clientFd) {
     int writeFd = write(clientFd, buffer, bufferSize);
     if (writeFd == -1) {
         throw("Error registering client");
@@ -112,7 +120,6 @@ int Listener::getSelectFdValue() {
 }
 
 void Listener::handleClientRequest() {
-    std::unordered_map<int, Payload> sendBackMap;
     for (int i = 0; i < fdArr.size(); i++) {
         if (!FD_ISSET(fdArr[i], &(this->fdSet))) {
             continue;
@@ -120,23 +127,16 @@ void Listener::handleClientRequest() {
 
         Payload payload = readClientBuffer(fdArr[i]);
 
-        std::pair<int, std::vector<Person>> result = handlePayload(payload);
-        insertPersonVectorToMapping(sendBackMap, result);
+        handlePayload(payload);
     }
 
+    initNewData();
     for (int i = 0; i < fdArr.size(); i++) {
         if (!FD_ISSET(fdArr[i], &(this->fdSet))) {
             continue;
         }
 
-        for (const auto mapping : sendBackMap) {
-            memset(buffer, 0, bufferSize);
-            memcpy(buffer, &(mapping.second), sizeof(Payload));
-            int writeFd = write(fdArr[i], buffer, bufferSize);
-            if (writeFd == -1) {
-                throw ("Failed to write a buffer");
-            }
-        }
+        sendNewData(fdArr[i]);
     }
 }
 
@@ -151,67 +151,39 @@ Payload Listener::readClientBuffer(int fdClient) {
     return *result;
 }
 
-std::pair<int, std::vector<Person>> Listener::handlePayload(Payload &payload) {
+void Listener::handlePayload(Payload &payload) {
     if (payload.type == TYPE_CREATE) {
-        return std::make_pair(TYPE_CREATE, handleTypeCreate(payload));
+        handleTypeCreate(payload);
     } else if (payload.type == TYPE_UPDATE) {
-        return std::make_pair(TYPE_CREATE, handleTypeUpdate(payload));
+        handleTypeUpdate(payload);
     } else if (payload.type == TYPE_DELETE) {
-        return std::make_pair(TYPE_CREATE, handleTypeDelete(payload));
+        handleTypeDelete(payload);
     }
-
-    return std::make_pair(-1, std::vector<Person>());
 }
 
-std::vector<Person> Listener::handleTypeCreate(Payload &payload) {
-    std::vector<Person> sendBack;
+void Listener::handleTypeCreate(Payload &payload) {
     int length = payload.length;
     for (int i = 0; i < length; i++) {
         Person *person = reinterpret_cast<Person*>(payload.data);
         person->id = Listener::nextId++;
         dataTree.insert({person->id, *person});
-
-        memcpy(payload.data, person, bufferSize);
-        sendBack.push_back(*person);
     }
-    return sendBack;
 }
 
-std::vector<Person> Listener::handleTypeUpdate(Payload &payload) {
-    std::vector<Person> sendBack;
+void Listener::handleTypeUpdate(Payload &payload) {
     int length = payload.length;
     for (int i = 0; i < length; i++) {
         Person *person = reinterpret_cast<Person*>(payload.data);
         dataTree.insert({person->id, *person});
-
-        memcpy(payload.data, person, bufferSize);
-        sendBack.push_back(*person);
     }
-    return sendBack;
 }
 
-std::vector<Person> Listener::handleTypeDelete(Payload &payload) {
-    std::vector<Person> sendBack;
+void Listener::handleTypeDelete(Payload &payload) {
     int length = payload.length;
     for (int i = 0 ; i < length; i++) {
         Person *person = reinterpret_cast<Person*>(payload.data);
         dataTree.erase(person->id);
-
-        sendBack.push_back(*person);
     }
-    return sendBack;
-}
-
-void Listener::insertPersonVectorToMapping(std::unordered_map<int, Payload> &mapping,
-     std::pair<int, std::vector<Person>> &sendBackPair) {
-    
-    Payload &curr = mapping[sendBackPair.first];
-    int currSize = curr.length;
-    Person *currArrPos = reinterpret_cast<Person*>(curr.data);
-    currArrPos += currSize;
-
-    memcpy(currArrPos, sendBackPair.second.data(), sizeof(Person) * currSize);
-    curr.length += sendBackPair.second.size();
 }
 
 Payload Listener::buildPayloadForRegister() {
