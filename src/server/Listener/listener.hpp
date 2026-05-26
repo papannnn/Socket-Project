@@ -1,14 +1,15 @@
 #include <../shared/type.hpp>
 #include <sys/un.h>
+#include <sys/socket.h>
 #include <vector>
 #include <map>
 
 class Listener {
 public:
-    Listener(char* socketName_, const int &socketClientHandle, const int &bufferSize);
+    Listener(char const * socketName_, const int &socketClientHandle, const int &bufferSize);
     void execListen();
 private:
-    char* socketName;
+    char const* socketName;
     int socketClientHandle;
     int bufferSize;
     std::vector<int> fdArr;
@@ -27,12 +28,14 @@ private:
     void refreshFdSet();
     int acceptClient(int connectionSocket);
     void registerClient(int clientFd);
-    void handleClientRequest(void (*callback) (int fd));
+    void handleClientRequest();
     int getSelectFdValue();
     Payload readClientBuffer(int fdClient);
-    std::vector<Payload> handlePayload(Payload &payload);
-    std::vector<Payload> handleTypeCreate(Payload &payload);
-    std::vector<Payload> handleTypeUpdate(Payload &payload);
-    std::vector<Payload> handleTypeDelete(Payload &payload);
+    std::pair<int, std::vector<Person>> handlePayload(Payload &payload);
+    std::vector<Person> handleTypeCreate(Payload &payload);
+    std::vector<Person> handleTypeUpdate(Payload &payload);
+    std::vector<Person> handleTypeDelete(Payload &payload);
     std::unordered_map<int, std::vector<Person>> buildMappingPayload(std::vector<Payload> &payload);
+    void insertPersonVectorToMapping(std::unordered_map<int, Payload> &mapping, std::pair<int, std::vector<Person>> &sendBackPair);
+    Payload buildPayloadForRegister();
 };

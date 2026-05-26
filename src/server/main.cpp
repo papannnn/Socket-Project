@@ -1,9 +1,7 @@
-#include <iostream>
-#include <sys/socket.h>
-#include <sys/un.h>
+#include "Listener/listener.hpp"
 #include "../shared/const.hpp"
-#include <unistd.h>
 
 int main () {
-    
+    Listener listener(SOCKET_NAME, SOCKET_CLIENT_HANDLE_CNT, BUFFER_SIZE);
+    listener.execListen();
 }

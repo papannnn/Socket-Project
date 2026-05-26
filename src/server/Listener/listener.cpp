@@ -5,8 +5,11 @@
 #include <unistd.h>
 #include <unordered_map>
 #include <../shared/type.hpp>
+#include <iostream>
 
-Listener::Listener(char* socketName_, const int &socketClientHandle_, const int &bufferSize_) : 
+int Listener::nextId = 1;
+
+Listener::Listener(char const* socketName_, const int &socketClientHandle_, const int &bufferSize_) : 
         socketName(socketName_), socketClientHandle(socketClientHandle_), bufferSize(bufferSize_) { 
     
     unlink(socketName);
@@ -21,6 +24,7 @@ void Listener::execListen() {
     initListen(connectionSocketFd);
 
     insertFdToArrayFd(connectionSocketFd);
+    std::cout << "Listening..." << std::endl;
     while (true) {
         refreshFdSet();
         select(getSelectFdValue(), &(this->fdSet), NULL, NULL, NULL);
@@ -29,9 +33,7 @@ void Listener::execListen() {
             int fdClient = accept(connectionSocketFd, NULL, NULL);
             registerClient(fdClient);
         } else {
-            handleClientRequest([] (int fd) {
-                this->handlePayload();
-            });
+            handleClientRequest();
         }
     }
 }
@@ -92,8 +94,13 @@ int Listener::acceptClient(int connectionSocket) {
 
 void Listener::registerClient(int clientFd) {
     insertFdToArrayFd(clientFd);
-    // Send data
-
+    Payload payload = buildPayloadForRegister();
+    memset(buffer, 0, bufferSize);
+    memcpy(buffer, &payload, sizeof(Payload));
+    int writeFd = write(clientFd, buffer, bufferSize);
+    if (writeFd == -1) {
+        throw("Error registering client");
+    }
 }
 
 int Listener::getSelectFdValue() {
@@ -104,8 +111,8 @@ int Listener::getSelectFdValue() {
     return result + 1;
 }
 
-void Listener::handleClientRequest(void (*callback)(int fd)) {
-    std::vector<Payload> sendBackArr;
+void Listener::handleClientRequest() {
+    std::unordered_map<int, Payload> sendBackMap;
     for (int i = 0; i < fdArr.size(); i++) {
         if (!FD_ISSET(fdArr[i], &(this->fdSet))) {
             continue;
@@ -113,25 +120,25 @@ void Listener::handleClientRequest(void (*callback)(int fd)) {
 
         Payload payload = readClientBuffer(fdArr[i]);
 
-        std::vector<Payload> result = handlePayload(payload);
-        sendBackArr.insert(sendBackArr.end(), result.begin(), result.end());
+        std::pair<int, std::vector<Person>> result = handlePayload(payload);
+        insertPersonVectorToMapping(sendBackMap, result);
     }
 
-    std::unordered_map<int, std::vector<Person>> mappingPayload = buildMappingPayload(sendBackArr);
     for (int i = 0; i < fdArr.size(); i++) {
         if (!FD_ISSET(fdArr[i], &(this->fdSet))) {
             continue;
         }
 
-        for (const auto mapping : mappingPayload) {
+        for (const auto mapping : sendBackMap) {
             memset(buffer, 0, bufferSize);
-            memcpy(buffer, mapping.second.data(), bufferSize);
-
+            memcpy(buffer, &(mapping.second), sizeof(Payload));
+            int writeFd = write(fdArr[i], buffer, bufferSize);
+            if (writeFd == -1) {
+                throw ("Failed to write a buffer");
+            }
         }
     }
 }
-
-
 
 Payload Listener::readClientBuffer(int fdClient) {
     memset(buffer, 0, bufferSize);
@@ -144,20 +151,20 @@ Payload Listener::readClientBuffer(int fdClient) {
     return *result;
 }
 
-std::vector<Payload> Listener::handlePayload(Payload &payload) {
+std::pair<int, std::vector<Person>> Listener::handlePayload(Payload &payload) {
     if (payload.type == TYPE_CREATE) {
-        return handleTypeCreate(payload);
+        return std::make_pair(TYPE_CREATE, handleTypeCreate(payload));
     } else if (payload.type == TYPE_UPDATE) {
-        return handleTypeUpdate(payload);
+        return std::make_pair(TYPE_CREATE, handleTypeUpdate(payload));
     } else if (payload.type == TYPE_DELETE) {
-        return handleTypeDelete(payload);
+        return std::make_pair(TYPE_CREATE, handleTypeDelete(payload));
     }
 
-    return std::vector<Payload>();
+    return std::make_pair(-1, std::vector<Person>());
 }
 
-std::vector<Payload> Listener::handleTypeCreate(Payload &payload) {
-    std::vector<Payload> sendBack;
+std::vector<Person> Listener::handleTypeCreate(Payload &payload) {
+    std::vector<Person> sendBack;
     int length = payload.length;
     for (int i = 0; i < length; i++) {
         Person *person = reinterpret_cast<Person*>(payload.data);
@@ -165,40 +172,58 @@ std::vector<Payload> Listener::handleTypeCreate(Payload &payload) {
         dataTree.insert({person->id, *person});
 
         memcpy(payload.data, person, bufferSize);
-        sendBack.push_back(payload);
+        sendBack.push_back(*person);
     }
     return sendBack;
 }
 
-std::vector<Payload> Listener::handleTypeUpdate(Payload &payload) {
-    std::vector<Payload> sendBack;
+std::vector<Person> Listener::handleTypeUpdate(Payload &payload) {
+    std::vector<Person> sendBack;
     int length = payload.length;
     for (int i = 0; i < length; i++) {
         Person *person = reinterpret_cast<Person*>(payload.data);
         dataTree.insert({person->id, *person});
 
         memcpy(payload.data, person, bufferSize);
-        sendBack.push_back(payload);
+        sendBack.push_back(*person);
     }
     return sendBack;
 }
 
-std::vector<Payload> Listener::handleTypeDelete(Payload &payload) {
-    std::vector<Payload> sendBack;
+std::vector<Person> Listener::handleTypeDelete(Payload &payload) {
+    std::vector<Person> sendBack;
     int length = payload.length;
     for (int i = 0 ; i < length; i++) {
         Person *person = reinterpret_cast<Person*>(payload.data);
         dataTree.erase(person->id);
 
-        sendBack.push_back(payload);
+        sendBack.push_back(*person);
     }
     return sendBack;
 }
 
-std::unordered_map<int, std::vector<Person>> buildMappingPayload(std::vector<Payload> &payloadArr) {
-    std::unordered_map<int, std::vector<Person>> result;
-    for (Payload &p : payloadArr) {
-        result[p.type].push_back(p.);
+void Listener::insertPersonVectorToMapping(std::unordered_map<int, Payload> &mapping,
+     std::pair<int, std::vector<Person>> &sendBackPair) {
+    
+    Payload &curr = mapping[sendBackPair.first];
+    int currSize = curr.length;
+    Person *currArrPos = reinterpret_cast<Person*>(curr.data);
+    currArrPos += currSize;
+
+    memcpy(currArrPos, sendBackPair.second.data(), sizeof(Person) * currSize);
+    curr.length += sendBackPair.second.size();
+}
+
+Payload Listener::buildPayloadForRegister() {
+    Payload payload;
+    payload.type = TYPE_REGISTER;
+    payload.length = dataTree.size();
+    std::vector<Person> arr;
+    arr.reserve(payload.length);
+
+    for (const auto &mapping : dataTree) {
+        arr.push_back(mapping.second);
     }
-    return result;
+    memcpy(payload.data, arr.data(), sizeof(Person) * payload.length);
+    return payload;
 }
