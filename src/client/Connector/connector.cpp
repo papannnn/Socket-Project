@@ -4,28 +4,22 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <iostream>
+#include <cstring>
 
 Connector::Connector(char const* socketName_) : socketName(socketName_) {
     this->sockAddr = new sockaddr_un();
 }
 
 void Connector::exec() {
-    std::cout << "HELLO" << std::endl;
     int socketConnectionFd = initSocketConnection();
-    std::cout << "HELLO" << std::endl;
     readAndUpdateDataTree(socketConnectionFd);
-    std::cout << "HELLO" << std::endl;
     showMenu(socketConnectionFd);
-    std::cout << "HELLO" << std::endl;
 }
 
 int Connector::initSocketConnection() {
     int socketConnectionFd = initSocket();
-    std::cout <<socketConnectionFd << std::endl;
     const sockaddr* sockAddr = initSockAddr(this->sockAddr, socketName);
-    std::cout << "HELLO" << std::endl;
     int connectFd = connect(socketConnectionFd, sockAddr, sizeof(sockaddr_un));
-    std::cout <<connectFd << std::endl;
     if (connectFd == -1) {
         throw("Failed to connect to server");
     }
@@ -39,6 +33,10 @@ void Connector::readAndUpdateDataTree(int socketConnectionFd) {
         throw("Failed to read to server");
     }
     Payload *payload = reinterpret_cast<Payload*>(buffer);
+    int size = payload->length;
+    int type = payload->type;
+    std::cout << "Ini payload len: " <<size << std::endl;
+    std::cout << "Ini payload type: " << type << std::endl;
     if (payload->type != TYPE_REFRESH) {
         return;
     }
@@ -46,6 +44,7 @@ void Connector::readAndUpdateDataTree(int socketConnectionFd) {
     dataTree.clear();
     Person *data = reinterpret_cast<Person*>(payload->data);
     for (int i = 0; i < payload->length; i++) {
+        std::cout << data->name <<std::endl;
         dataTree.insert({data->id, *data});
         data++;
     }
@@ -57,11 +56,16 @@ void Connector::triggerRefresh(int socketConnectionFd) {
 }
 
 void Connector::writeRefreshPayload(int socketConnectionFd) {
-    Payload payload;
+    Payload payload = {};
     payload.type = TYPE_REFRESH;
+    writePayload(payload, socketConnectionFd);
+}
+
+void Connector::writePayload(Payload &payload, int socketConnectionFd) {
     memset(buffer, 0, BUFFER_SIZE);
     memcpy(buffer, &payload, sizeof(Payload));
     int writeFd = write(socketConnectionFd, buffer, BUFFER_SIZE);
+    std::cout << writeFd << std::endl;
     if (writeFd == -1) {
         throw ("Failed writing to socket");
     }
@@ -121,8 +125,29 @@ void Connector::handlePrompt(int &choose, int socketConnectionFd) {
 }
 
 void Connector::handleCreate(int socketConnectionFd) {
+    std::string name = "";
+    while (name.size() >= 20 || name.size() == 0) {
+        std::cout << "Name [1-19]: ";
+        std::cin >> name;
+    }
+    
+    int age;
+    std::cout << "Age: ";
+    std::cin >> age;
 
+    Person person = {};
+    strcpy(person.name, name.data());
+    person.age = age;
+
+    Payload payload = {};
+    payload.length = 1;
+    payload.type = TYPE_CREATE;
+    memcpy(payload.data, &person, sizeof(Person));
+    writePayload(payload, socketConnectionFd);
+    readAndUpdateDataTree(socketConnectionFd);
 }
+
+
 
 void Connector::handleUpdate(int socketConnectionFd) {
     
@@ -134,7 +159,7 @@ void Connector::handleDelete(int socketConnectionFd) {
 
 void Connector::handleExit(int socketConnectionFd) {
     memset(buffer, 0, BUFFER_SIZE);
-    Payload payload;
+    Payload payload = {};
     payload.type = TYPE_CLOSE;
     payload.length = 1;
     memcpy(buffer, &payload, sizeof(Payload));

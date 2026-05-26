@@ -14,7 +14,7 @@ private:
     char const *socketName;
     std::map<int, Person> dataTree;
     sockaddr_un* sockAddr;
-    char *buffer[BUFFER_SIZE];
+    char buffer[BUFFER_SIZE];
 
     int initSocketConnection();
     void showTitle();
@@ -29,6 +29,7 @@ private:
     void handleUpdate(int socketConnectionFd);
     void handleDelete(int socketConnectionFd);
     void handleExit(int socketConnectionFd);
+    void writePayload(Payload &payload, int socketConnectionFd); 
 };
 
 #endif

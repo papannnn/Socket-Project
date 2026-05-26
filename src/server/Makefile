@@ -11,3 +11,9 @@ liblistener.a:listener.o
 
 server:main.o liblistener.a
 	g++ main.o liblistener.a ../shared/libhelper.a -o server 
+
+clean:
+	rm main.o
+	rm listener.o
+	rm liblistener.a
+	rm server

@@ -10,8 +10,8 @@
 #define TYPE_REFRESH 5
 
 struct Payload {
-    unsigned char type;
-    unsigned char length;
+    char type;
+    char length;
     char data[DATA_SIZE];
 };
 

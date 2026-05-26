@@ -29,7 +29,7 @@ private:
     void refreshFdSet();
     int acceptClient(int connectionSocket);
     void registerClient(int clientFd);
-    void handleClientRequest();
+    void handleClientRequest(int connectionSocketFd);
     int getSelectFdValue();
     Payload readClientBuffer(int fdClient);
     void handlePayload(Payload &payload, int fdClient);
@@ -42,6 +42,7 @@ private:
     Payload buildPayloadForRegister();
     void initNewData();
     void sendNewData(int clientFd);
+    void handleTypeRefresh(Payload &payload, int fdClient);
 };
 
 #endif

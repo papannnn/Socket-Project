@@ -11,3 +11,9 @@ libconnector.a:connector.o
 
 client:libconnector.a main.o
 	g++ -o client main.o libconnector.a ../shared/libhelper.a
+
+clean:
+	rm main.o
+	rm connector.o
+	rm libconnector.a
+	rm client
