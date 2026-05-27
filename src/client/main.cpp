@@ -9,5 +9,10 @@
 int main () {
     
     Connector connector(SOCKET_NAME);
-    connector.exec();
+    try {
+        connector.exec();
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+    }
+    
 }

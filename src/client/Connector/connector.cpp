@@ -40,8 +40,13 @@ void Connector::readAndUpdateDataTree(int socketConnectionFd) {
     if (payload->type != TYPE_REFRESH) {
         return;
     }
-
+    
+    std::cout << "JOKOWWIII" << std::endl;
     dataTree.clear();
+    if (payload->length == 0) {
+        return;
+    }
+
     Person *data = reinterpret_cast<Person*>(payload->data);
     for (int i = 0; i < payload->length; i++) {
         std::cout << data->name <<std::endl;
@@ -57,6 +62,8 @@ void Connector::triggerRefresh(int socketConnectionFd) {
 
 void Connector::writeRefreshPayload(int socketConnectionFd) {
     Payload payload = {};
+    memset(payload.data, 0, DATA_SIZE);
+    payload.length = 1;
     payload.type = TYPE_REFRESH;
     writePayload(payload, socketConnectionFd);
 }
@@ -83,8 +90,7 @@ void Connector::showTitle() {
 
 void Connector::showMenu(int socketConnectionFd) {
     int choose = -1;
-    while (choose != 4) {
-        triggerRefresh(socketConnectionFd);
+    while (choose != 5) {
         showTitle();
         showData();
         showPrompt();
@@ -107,19 +113,25 @@ void Connector::showPrompt() {
     std::cout << "1. Create Data" << std::endl;
     std::cout << "2. Update Data" << std::endl;
     std::cout << "3. Delete Data" << std::endl;
-    std::cout << "4. Exit" << std::endl;
-    std::cout << "Choose [1-4]: ";
+    std::cout << "4. Refresh Data" << std::endl;
+    std::cout << "5. Exit" << std::endl;
+    std::cout << "Choose [1-5]: ";
 }
 
 void Connector::handlePrompt(int &choose, int socketConnectionFd) {
     std::cin >> choose;
     if (choose == 1) {
         handleCreate(socketConnectionFd);
+        triggerRefresh(socketConnectionFd);
     } else if (choose == 2) {
         handleUpdate(socketConnectionFd);
+        triggerRefresh(socketConnectionFd);
     } else if (choose == 3) {
         handleDelete(socketConnectionFd);
+        triggerRefresh(socketConnectionFd);
     } else if (choose == 4) {
+        triggerRefresh(socketConnectionFd);
+    } else if (choose == 5) {
         handleExit(socketConnectionFd);
     }
 }
@@ -144,17 +156,55 @@ void Connector::handleCreate(int socketConnectionFd) {
     payload.type = TYPE_CREATE;
     memcpy(payload.data, &person, sizeof(Person));
     writePayload(payload, socketConnectionFd);
-    readAndUpdateDataTree(socketConnectionFd);
 }
 
 
 
 void Connector::handleUpdate(int socketConnectionFd) {
-    
+    int id = -1;
+    while (dataTree.find(id) == dataTree.end()) {
+        std::cout << "Input id: ";
+        std::cin >> id;
+    }
+
+    std::string name = "";
+    while (name.size() >= 20 || name.size() == 0) {
+        std::cout << "Name [1-19]: ";
+        std::cin >> name;
+    }
+
+    int age;
+    std::cout << "Age: ";
+    std::cin >> age;
+
+    Person person = {};
+    strcpy(person.name, name.data());
+    person.age = age;
+    person.id = id;
+
+    Payload payload = {};
+    payload.length = 1;
+    payload.type = TYPE_UPDATE;
+    memset(payload.data, 0, DATA_SIZE);
+    memcpy(payload.data, &person, sizeof(Person));
+    writePayload(payload, socketConnectionFd);
 }
 
 void Connector::handleDelete(int socketConnectionFd) {
-    
+    int id = -1;
+    while (dataTree.find(id) == dataTree.end()) {
+        std::cout << "Input id: ";
+        std::cin >> id;
+    }
+
+    Person person = {};
+    person.id = id;
+
+    Payload payload = {};
+    payload.length = 1;
+    payload.type = TYPE_DELETE;
+    memcpy(payload.data, &person, sizeof(Person));
+    writePayload(payload, socketConnectionFd);
 }
 
 void Connector::handleExit(int socketConnectionFd) {

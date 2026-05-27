@@ -107,6 +107,7 @@ void Listener::initNewData() {
 void Listener::sendNewData(int clientFd) {
     std::cout << "Sending data to " << clientFd << std::endl;
     int writeFd = write(clientFd, buffer, bufferSize);
+
     if (writeFd == -1) {
         throw("Error registering client");
     }
@@ -129,7 +130,7 @@ void Listener::handleClientRequest(int connectionSocketFd) {
         }
 
         Payload payload = readClientBuffer(fdArr[i]);
-
+        
         handlePayload(payload, fdArr[i]);
     }
 
@@ -152,11 +153,12 @@ Payload Listener::readClientBuffer(int fdClient) {
 
 void Listener::handlePayload(Payload &payload, int fdClient) {
     int type = payload.type;
-    std::cout << "Type: " << type << std::endl;
+    int size = payload.length;
+    // std::cout << "Type: " << type << std::endl;
     if (payload.type == TYPE_CREATE) {
-        std::cout << "WHY" << std::endl;
         handleTypeCreate(payload);
     } else if (payload.type == TYPE_UPDATE) {
+        std::cout << "INI MASUK" << std::endl;
         handleTypeUpdate(payload);
     } else if (payload.type == TYPE_DELETE) {
         handleTypeDelete(payload);
@@ -164,12 +166,11 @@ void Listener::handlePayload(Payload &payload, int fdClient) {
         handleTypeClose(payload, fdClient);
         return;
     } else if (payload.type == TYPE_REFRESH) {
-    } else {
-        return;
+        std::cout << "HANDLED" << std::endl;
+        std::cout << "Type: " << type << std::endl;
+        std::cout << "Length :" << size <<std::endl;
+        handleTypeRefresh(payload, fdClient);
     }
-
-    initNewData();
-    sendNewData(fdClient);
 }
 
 void Listener::handleTypeCreate(Payload &payload) {
@@ -185,7 +186,7 @@ void Listener::handleTypeUpdate(Payload &payload) {
     int length = payload.length;
     Person *person = reinterpret_cast<Person*>(payload.data);
     for (int i = 0; i < length; i++) {
-        dataTree.insert({person[i].id, person[i]});
+        dataTree.insert_or_assign(person[i].id, person[i]);
     }
 }
 
